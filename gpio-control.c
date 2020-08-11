@@ -99,11 +99,6 @@ static int __init gpio_control_init(void)
 	}
 	printk(KERN_WARNING "Sysfs /sys/kernel/gpio-control/gpio_state created\n");
 
-	/* register gpio */
-	gpio_request(gpio_number, "sysfs");
-	gpio_direction_output(gpio_number, GPIOF_INIT_HIGH);
-	gpio_export(gpio_number, false);
-
 	/* register cdev */
 	dev = MKDEV(gpio_control_major, 0);
 	int alloc_ret = 0;
