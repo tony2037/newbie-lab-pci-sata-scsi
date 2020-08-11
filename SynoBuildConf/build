@@ -1,0 +1,22 @@
+#!/bin/bash
+# Copyright (c) 2000-2019 Synology Inc. All rights reserved.
+
+export CROSS_COMPILE=${ToolChainPrefix64}
+export ARCH=${ARCH}
+
+echo DEBUG_ZTEX
+echo ${PWD}
+case "${MakeClean}" in
+	[Yy][Ee][Ss])
+		make -C "$KSRC" M=${PWD} clean
+		;;
+esac
+
+case "${CleanOnly}" in
+	[Yy][Ee][Ss])
+		return
+		;;
+esac
+
+make -C "$KSRC" M=${PWD}
+make all
