@@ -17,9 +17,10 @@ static unsigned int gpio_control_major = 0;
 static unsigned int num_of_dev = 1;
 static struct cdev gpio_control_cdev;
 static int ioctl_num = 0;
+static dev_t dev; 
 
 /* gpio configuration */
-static unsigned int gpio_number = 20; /* Change it to the gpio port that you wanna control*/
+static unsigned int gpio_number = 23; /* Change it to the gpio port that you wanna control*/
 
 /* construct kobject */
 static struct kobject *kobject;
@@ -68,6 +69,7 @@ static long gpio_control_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 			ret = __put_user(pinValue, (int __user *)arg);
 			break;
 		default:
+			printk(KERN_WARNING "%s driver(major: %d) No such operation.\n", DRIVER_NAME, gpio_control_major);
 			break;
 	}
 	return ret;
@@ -100,7 +102,7 @@ static int __init gpio_control_init(void)
 	gpio_export(gpio_number, false);
 
 	/* register cdev */
-	dev_t dev = MKDEV(gpio_control_major, 0);
+	dev = MKDEV(gpio_control_major, 0);
 	int alloc_ret = 0;
 	int cdev_ret = 0;
 
@@ -125,6 +127,12 @@ static int __init gpio_control_init(void)
 
 static void __exit gpio_control_exit(void)
 {
+	unregister_chrdev_region(dev, num_of_dev);
+	cdev_del(&gpio_control_cdev);
+	sysfs_remove_file(kobject, &gpio_state_attribute.attr);
+	kobject_put(kobject);
+	kobject_del(kobject);
+	printk(KERN_WARNING "%s driver(major: %d) uninstalled.\n", DRIVER_NAME, gpio_control_major);
 }
 
 module_init(gpio_control_init)
