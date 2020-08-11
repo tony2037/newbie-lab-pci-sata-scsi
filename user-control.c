@@ -30,14 +30,17 @@ int main(int argc, char **argv) {
         	ret = ioctl(fd, IOCTL_UP, &num);
 		printf("Set gpio to up\n");	
 	}
-	else if(operation, "down" == 0) {
+	else if(strcmp(operation, "down") == 0) {
         	ret = ioctl(fd, IOCTL_DOWN, &num);
 		printf("Set gpio to down\n");
 	}
-	else if(operation, "get" == 0) {
+	else if(strcmp(operation, "get") == 0) {
 		int num = 0;
         	ret = ioctl(fd, IOCTL_GET, &num);
 		printf("The value is %d\n", num);
+	}
+	else {
+		printf("No such operation: %s\n", operation);
 	}
 
 	close_ret = close(fd);
