@@ -59,13 +59,16 @@ static long gpio_control_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 	int pinValue;
 	switch(cmd) {
 		case IOCTL_UP:
+			printk(KERN_INFO "Detect UP operation. write %d to %d\n", GPIOF_INIT_HIGH, gpio_number);	
 			SYNO_GPIO_WRITE(gpio_number, GPIOF_INIT_HIGH);
 			break;
 		case IOCTL_DOWN:
+			printk(KERN_INFO "Detect DOWN operation. write %d to %d\n", GPIOF_INIT_LOW, gpio_number);	
 			SYNO_GPIO_WRITE(gpio_number, GPIOF_INIT_LOW);
 			break;
 		case IOCTL_GET:
 			pinValue = SYNO_GPIO_READ(gpio_number);
+			printk(KERN_INFO "Detect GET operation. read %d from %d\n", pinValue, gpio_number);	
 			ret = __put_user(pinValue, (int __user *)arg);
 			break;
 		default:
