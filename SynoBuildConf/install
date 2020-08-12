@@ -4,3 +4,4 @@
 install -Dm644 gpio-control.ko ${TmpInstDir}/lib/modules/gpio-control.ko
 install -Dm644 pci-monitor.ko ${TmpInstDir}/lib/modules/pci-monitor.ko
 install -Dm644 user-control ${TmpInstDir}/bin/user-control
+install -Dm644 pci-receiver ${TmpInstDir}/bin/pci-receiver

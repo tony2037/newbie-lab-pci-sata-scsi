@@ -6,7 +6,10 @@ C_SRCS = user-control.c
 TARGET = user-control
 
 .PHONY: all
-all: $(TARGET)
+all: $(TARGET) pci-receiver
 
 $(TARGET): $(C_SRCS)
+	$(CC) $(CFLAGS) -o $@ $^
+
+pci-receiver: pci-receiver.c
 	$(CC) $(CFLAGS) -o $@ $^
