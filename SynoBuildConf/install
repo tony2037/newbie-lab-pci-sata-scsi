@@ -2,4 +2,5 @@
 # Copyright (c) 2000-2019 Synology Inc. All rights reserved.
 
 install -Dm644 gpio-control.ko ${TmpInstDir}/lib/modules/gpio-control.ko
+install -Dm644 pci-monitor.ko ${TmpInstDir}/lib/modules/pci-monitor.ko
 install -Dm644 user-control ${TmpInstDir}/bin/user-control
