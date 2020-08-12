@@ -26,11 +26,12 @@
 #define PORT_REGISTER_OFFSET(port_number) (0x100+port_number*0x80)
 
 #define SLORT4_PORT 1
+#define SLORT3_PORT 0
 
 static struct pci_dev *dev = NULL;
 static unsigned long io_base;
 static unsigned long ports_base[4];
-static unsigned int detection_state;
+static unsigned int detection_states[5];
 
 /* signal sending */
 static int pid;
@@ -101,9 +102,11 @@ void send_signal(struct siginfo *info, struct task_struct *task, int signal, int
 static ssize_t pci_monitor_read(struct file *file, char __user *buf, size_t count, loff_t *ppos) {
 	char monitor_buf[10];
 
-	detection_state = show_sstatus(ports_base[SLORT4_PORT], SSTATUS_OFFSET);
-	sprintf(monitor_buf, "%u", detection_state);
-	printk(KERN_INFO "Slot 4 detection state %u", detection_state);
+	detection_states[3] = show_sstatus(ports_base[SLORT3_PORT], SSTATUS_OFFSET);
+	detection_states[4] = show_sstatus(ports_base[SLORT4_PORT], SSTATUS_OFFSET);
+	sprintf(monitor_buf, "%u %u %u %u", 0, 0,  detection_states[3], detection_states[4]);
+	printk(KERN_INFO "Slot 3 detection state %u", detection_states[3]);
+	printk(KERN_INFO "Slot 4 detection state %u", detection_states[4]);
 
 	unsigned long ret;
 	ret = copy_to_user(buf, monitor_buf, strlen(monitor_buf) + 1);
@@ -181,7 +184,8 @@ static int __init pci_monitor_init(void)
 		printk(KERN_INFO "port%zu_base: %lx\n", i, ports_base[i]);
 		ret = show_sstatus(ports_base[i], SSTATUS_OFFSET);
 	}
-	detection_state = show_sstatus(ports_base[SLORT4_PORT], SSTATUS_OFFSET);
+	detection_states[3] = show_sstatus(ports_base[SLORT3_PORT], SSTATUS_OFFSET);
+	detection_states[4] = show_sstatus(ports_base[SLORT3_PORT], SSTATUS_OFFSET);
 
 
 	/* register cdev */
