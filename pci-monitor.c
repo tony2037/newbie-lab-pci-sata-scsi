@@ -11,18 +11,19 @@
 #include "pci-monitor.h"
 
 #define DRIVER_NAME "pci-monitor"
-#define VENDOR_ID 0x1b4b
-#define DEVICE_ID 0x9235
+#define VENDOR_ID 0x8086
+#define DEVICE_ID 0x31e3
 #define SUBSYS_VENDOR_ID 0x1b4b
 #define SUBSYS_DEVICE_ID 0x9235
 #define REQUIRE_BAR 5
 #define SSTATUS_OFFSET 0x28
 #define PORT_REGISTER_OFFSET(port_number) (0x100+port_number*0x80)
 
-struct pci_dev *dev = NULL;
-unsigned long io_base;
-unsigned long port0_base;
-unsigned long port1_base;
+#define SLORT4_PORT 1
+
+static struct pci_dev *dev = NULL;
+static unsigned long io_base;
+static unsigned long ports_base[4];
 
 void show_sstatus(unsigned long port_register_base, unsigned long offset) {
 	unsigned int *reg = ioremap(port_register_base + offset, 4);
@@ -52,6 +53,7 @@ void show_sstatus(unsigned long port_register_base, unsigned long offset) {
 static int __init pci_monitor_init(void)
 {
 	int ret = 0;
+	size_t i = 0;
 	/* search for pci device through vendor id, device id, subsystem vendor id and subsystem device id */
 	dev = pci_get_device(VENDOR_ID, DEVICE_ID, dev);
 	if (dev == NULL) {
@@ -65,8 +67,8 @@ static int __init pci_monitor_init(void)
 
 	/* Get the I/O base address from the appropriate base address register (bar) in the configuration space */
 	io_base = pci_resource_start(dev, REQUIRE_BAR);
-	port0_base = io_base + PORT_REGISTER_OFFSET(0);
-	port1_base = io_base + PORT_REGISTER_OFFSET(1);
+	for(i = 0; i < 4; i++)
+		ports_base[i] = io_base + PORT_REGISTER_OFFSET(i);
 
 	/* Mark this region as being spoken for */
 	// ret = pci_request_region(dev, REQUIRE_BAR, "BAR 5 base address");
@@ -74,10 +76,10 @@ static int __init pci_monitor_init(void)
 	// 	printk(KERN_WARNING "require bar fail.\n");
 
 	printk(KERN_INFO "io_base: %lx\n", io_base);
-	printk(KERN_INFO "port0_base: %lx\n", port0_base);
-	printk(KERN_INFO "port1_base: %lx\n", port1_base);
-	show_sstatus(port0_base, SSTATUS_OFFSET);
-	show_sstatus(port1_base, SSTATUS_OFFSET);
+	for(i = 0; i < 4; i++) {
+		printk(KERN_INFO "port%zu_base: %lx\n", i, ports_base[i]);
+		show_sstatus(ports_base[i], SSTATUS_OFFSET);
+	}
 
 	return 0;
 }
