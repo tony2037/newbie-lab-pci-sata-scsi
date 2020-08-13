@@ -46,12 +46,6 @@ static struct controller controller2 = {
 };
 
 static struct ds_slot slots[5]; // There are 4 slots, but since we dont mess up with slot 1, there are only 2 - 4
-/*
-static struct pci_dev *dev = NULL;
-static unsigned long io_base;
-static unsigned long ports_base[4];
-static unsigned int detection_states[5];
-*/
 
 /* signal sending */
 static int pid;
