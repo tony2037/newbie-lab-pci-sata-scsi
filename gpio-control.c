@@ -20,7 +20,7 @@ static int ioctl_num = 0;
 static dev_t dev; 
 
 /* gpio configuration */
-static unsigned int gpio_number = 23; /* Change it to the gpio port that you wanna control*/
+static unsigned int gpio_numbers[5] = {0, 0, 21, 22, 23}; /* Change it to the gpio port that you wanna control*/
 
 /* construct kobject */
 static struct kobject *kobject;
@@ -53,22 +53,50 @@ static int gpio_control_close(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+static ssize_t gpio_control_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos){
+	char gpio_control_buf[10];
+	char command[10];
+	int slot;
+
+	if(count > 10)
+		return -EINVAL;
+	unsigned long ret;
+	ret = copy_from_user(gpio_control_buf, buf, count);
+	sscanf(gpio_control_buf, "%d %s", &slot, command);
+	printk(KERN_INFO "Get command: Let slot %d goes %s\n", slot, command);
+
+	if (slot > 4 || slot < 2) {
+		printk(KERN_WARNING "The slot number %d is illegal\n", slot);
+		return count;
+	}
+
+	if (strcmp(command, "up") == 0) {
+		SYNO_GPIO_WRITE(gpio_numbers[slot], GPIOF_INIT_HIGH);
+	} else if (strcmp(command, "down") == 0) {
+		SYNO_GPIO_WRITE(gpio_numbers[slot], GPIOF_INIT_LOW);
+	
+	} else {
+		printk(KERN_INFO "No such command: %s\n", command);
+	}
+	return count;
+}
+
 static long gpio_control_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
 	int pinValue;
 	switch(cmd) {
 		case IOCTL_UP:
-			printk(KERN_INFO "Detect UP operation. write %d to %d\n", GPIOF_INIT_HIGH, gpio_number);	
-			SYNO_GPIO_WRITE(gpio_number, GPIOF_INIT_HIGH);
+			printk(KERN_INFO "Detect UP operation. write %d to %d\n", GPIOF_INIT_HIGH, gpio_numbers[4]);	
+			SYNO_GPIO_WRITE(gpio_numbers[4], GPIOF_INIT_HIGH);
 			break;
 		case IOCTL_DOWN:
-			printk(KERN_INFO "Detect DOWN operation. write %d to %d\n", GPIOF_INIT_LOW, gpio_number);	
-			SYNO_GPIO_WRITE(gpio_number, GPIOF_INIT_LOW);
+			printk(KERN_INFO "Detect DOWN operation. write %d to %d\n", GPIOF_INIT_LOW, gpio_numbers[4]);	
+			SYNO_GPIO_WRITE(gpio_numbers[4], GPIOF_INIT_LOW);
 			break;
 		case IOCTL_GET:
-			pinValue = SYNO_GPIO_READ(gpio_number);
-			printk(KERN_INFO "Detect GET operation. read %d from %d\n", pinValue, gpio_number);	
+			pinValue = SYNO_GPIO_READ(gpio_numbers[4]);
+			printk(KERN_INFO "Detect GET operation. read %d from %d\n", pinValue, gpio_numbers[4]);	
 			ret = __put_user(pinValue, (int __user *)arg);
 			break;
 		default:
@@ -81,6 +109,7 @@ static long gpio_control_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 struct file_operations fops = {
  .owner = THIS_MODULE,
  .open = gpio_control_open,
+ .write = gpio_control_write,
  .release = gpio_control_close,
  .unlocked_ioctl = gpio_control_ioctl,
 };
