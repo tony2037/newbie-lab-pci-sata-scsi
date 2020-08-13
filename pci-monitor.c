@@ -17,21 +17,41 @@
 #include "pci-monitor.h"
 
 #define DRIVER_NAME "pci-monitor"
-#define VENDOR_ID 0x8086
-#define DEVICE_ID 0x31e3
-#define SUBSYS_VENDOR_ID 0x1b4b
-#define SUBSYS_DEVICE_ID 0x9235
+
+#define CONTROLLER1_VENDOR_ID 0x8086
+#define CONTROLLER1_DEVICE_ID 0x31e3
+#define CONTROLLER2_VENDOR_ID 0x1b4b
+#define CONTROLLER2_DEVICE_ID 0x9235
+
 #define REQUIRE_BAR 5
 #define SSTATUS_OFFSET 0x28
 #define PORT_REGISTER_OFFSET(port_number) (0x100+port_number*0x80)
 
-#define SLORT4_PORT 1
-#define SLORT3_PORT 0
+#define SLOT2_PORT 2	// belongs to controller 2
+#define SLOT3_PORT 0	// belongs to controller 1
+#define SLOT4_PORT 1	// belongs to controller 1
 
+static struct controller controller1 = {
+	.vendor = CONTROLLER1_VENDOR_ID,
+	.device = CONTROLLER1_DEVICE_ID,
+	.dev = NULL,
+	.io_base = 0x0,
+};
+
+static struct controller controller2 = {
+	.vendor = CONTROLLER2_VENDOR_ID,
+	.device = CONTROLLER2_DEVICE_ID,
+	.dev = NULL,
+	.io_base = 0x0,
+};
+
+static struct ds_slot slots[5]; // There are 4 slots, but since we dont mess up with slot 1, there are only 2 - 4
+/*
 static struct pci_dev *dev = NULL;
 static unsigned long io_base;
 static unsigned long ports_base[4];
 static unsigned int detection_states[5];
+*/
 
 /* signal sending */
 static int pid;
@@ -101,14 +121,15 @@ void send_signal(struct siginfo *info, struct task_struct *task, int signal, int
 
 static ssize_t pci_monitor_read(struct file *file, char __user *buf, size_t count, loff_t *ppos) {
 	char monitor_buf[10];
-
-	detection_states[3] = show_sstatus(ports_base[SLORT3_PORT], SSTATUS_OFFSET);
-	detection_states[4] = show_sstatus(ports_base[SLORT4_PORT], SSTATUS_OFFSET);
-	sprintf(monitor_buf, "%u %u %u %u", 0, 0,  detection_states[3], detection_states[4]);
-	printk(KERN_INFO "Slot 3 detection state %u", detection_states[3]);
-	printk(KERN_INFO "Slot 4 detection state %u", detection_states[4]);
-
+	size_t i;
 	unsigned long ret;
+
+	for(i = 2; i < 5; i++) {
+		slots[i].detection_state = show_sstatus(slots[i].port_base, SSTATUS_OFFSET);
+		printk(KERN_INFO "slot%zu state: %u\n", i, slots[i].detection_state);
+	}
+	sprintf(monitor_buf, "%u %u %u %u", 0, slots[2].detection_state,  slots[3].detection_state, slots[4].detection_state);
+
 	ret = copy_to_user(buf, monitor_buf, strlen(monitor_buf) + 1);
 
 	return count;
@@ -158,35 +179,53 @@ static int __init pci_monitor_init(void)
 {
 	int ret = 0;
 	size_t i = 0;
-	/* search for pci device through vendor id, device id, subsystem vendor id and subsystem device id */
-	dev = pci_get_device(VENDOR_ID, DEVICE_ID, dev);
-	if (dev == NULL) {
-		printk(KERN_WARNING "Cannot found pci dev through: VENDOR_ID, DEVICE_ID, SUBSYS_VENDOR_ID, SUBSYS_DEVICE_ID\n");
+	/* search for pci device through vendor id, device id*/
+	controller1.dev = pci_get_device(controller1.vendor, controller1.device, controller1.dev);
+	if (controller1.dev == NULL) {
+		printk(KERN_WARNING "Cannot found pci dev (1) through: %x:%x\n", controller1.vendor, controller1.device);
+		return -1;
+	}
+	controller2.dev = pci_get_device(controller2.vendor, controller2.device, controller2.dev);
+	if (controller2.dev == NULL) {
+		printk(KERN_WARNING "Cannot found pci dev (2) through: %x:%x\n", controller2.vendor, controller2.device);
+		return -1;
 	}
 
-	ret = pci_enable_device(dev);
+	// Enable pci device
+	ret = pci_enable_device(controller1.dev);
 	if(ret < 0) 
-		printk(KERN_WARNING "pci enable fail, vendor(%x):device(%x)\n", dev->vendor, dev->device);
-	printk(KERN_WARNING "pci enable success, vendor(%x):device(%x)\n", dev->vendor, dev->device);
+		printk(KERN_WARNING "pci enable fail, vendor(%x):device(%x)\n", controller1.vendor, controller1.device);
+	printk(KERN_WARNING "pci (1) enable success, vendor(%x):device(%x)\n", controller1.vendor, controller1.device);
+
+	ret = pci_enable_device(controller2.dev);
+	if(ret < 0) 
+		printk(KERN_WARNING "pci enable fail, vendor(%x):device(%x)\n", controller2.vendor, controller2.device);
+	printk(KERN_WARNING "pci (2) enable success, vendor(%x):device(%x)\n", controller2.vendor, controller2.device);
 
 	/* Get the I/O base address from the appropriate base address register (bar) in the configuration space */
-	io_base = pci_resource_start(dev, REQUIRE_BAR);
-	for(i = 0; i < 4; i++)
-		ports_base[i] = io_base + PORT_REGISTER_OFFSET(i);
+	controller1.io_base = pci_resource_start(controller1.dev, REQUIRE_BAR);
+	controller2.io_base = pci_resource_start(controller2.dev, REQUIRE_BAR);
 
-	/* Mark this region as being spoken for */
-	// ret = pci_request_region(dev, REQUIRE_BAR, "BAR 5 base address");
-	// if(ret != 0)
-	// 	printk(KERN_WARNING "require bar fail.\n");
+	/* Assign which pci the slots belong to*/
+	slots[2].controller = &controller2;
+	slots[3].controller = &controller1;
+	slots[4].controller = &controller1;
+	slots[2].port_number = SLOT2_PORT;
+	slots[3].port_number = SLOT3_PORT;
+	slots[4].port_number = SLOT4_PORT;
 
-	printk(KERN_INFO "io_base: %lx\n", io_base);
-	for(i = 0; i < 4; i++) {
-		printk(KERN_INFO "port%zu_base: %lx\n", i, ports_base[i]);
-		ret = show_sstatus(ports_base[i], SSTATUS_OFFSET);
+	/* Get the port register base with port register offset */
+	for(i = 2; i < 5; i++) {
+		slots[i].port_base = slots[i].controller->io_base + PORT_REGISTER_OFFSET(slots[i].port_number);
 	}
-	detection_states[3] = show_sstatus(ports_base[SLORT3_PORT], SSTATUS_OFFSET);
-	detection_states[4] = show_sstatus(ports_base[SLORT3_PORT], SSTATUS_OFFSET);
 
+	for(i = 2; i < 5; i++) {
+		printk(KERN_INFO "slot%zu port regiseter base: %lx\n", i, slots[i].port_base);
+		slots[i].detection_state = show_sstatus(slots[i].port_base, SSTATUS_OFFSET);
+	}
+	for(i = 2; i < 5; i++) {
+		printk(KERN_INFO "slot%zu detection state: %u\n", i, slots[i].detection_state);
+	}
 
 	/* register cdev */
 	pci_monitor_dev = MKDEV(pci_monitor_major, 0);
@@ -214,9 +253,12 @@ static int __init pci_monitor_init(void)
 
 static void __exit pci_monitor_exit(void)
 {
-	pci_disable_device(dev);
-	pci_release_region(dev, REQUIRE_BAR);
-	pci_dev_put(dev);
+	pci_disable_device(controller1.dev);
+	pci_disable_device(controller2.dev);
+	pci_release_region(controller1.dev, REQUIRE_BAR);
+	pci_release_region(controller2.dev, REQUIRE_BAR);
+	pci_dev_put(controller1.dev);
+	pci_dev_put(controller2.dev);
 	printk(KERN_WARNING "pci uninstall\n");
 
 	/* cdev */
