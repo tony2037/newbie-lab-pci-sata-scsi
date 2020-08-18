@@ -27,6 +27,7 @@
 #define SSTATUS_OFFSET 0x28
 #define PORT_REGISTER_OFFSET(port_number) (0x100+port_number*0x80)
 
+#define SLOT1_PORT 1	// belongs to controller 2
 #define SLOT2_PORT 2	// belongs to controller 2
 #define SLOT3_PORT 0	// belongs to controller 1
 #define SLOT4_PORT 1	// belongs to controller 1
@@ -118,11 +119,11 @@ static ssize_t pci_monitor_read(struct file *file, char __user *buf, size_t coun
 	size_t i;
 	unsigned long ret;
 
-	for(i = 2; i < 5; i++) {
+	for(i = 1; i < 5; i++) {
 		slots[i].detection_state = show_sstatus(slots[i].port_base, SSTATUS_OFFSET);
 		printk(KERN_INFO "slot%zu state: %u\n", i, slots[i].detection_state);
 	}
-	sprintf(monitor_buf, "%u %u %u %u", 0, slots[2].detection_state,  slots[3].detection_state, slots[4].detection_state);
+	sprintf(monitor_buf, "%u %u %u %u", slots[1].detection_state, slots[2].detection_state,  slots[3].detection_state, slots[4].detection_state);
 
 	ret = copy_to_user(buf, monitor_buf, strlen(monitor_buf) + 1);
 
@@ -201,23 +202,26 @@ static int __init pci_monitor_init(void)
 	controller2.io_base = pci_resource_start(controller2.dev, REQUIRE_BAR);
 
 	/* Assign which pci the slots belong to*/
+	slots[1].controller = &controller2;
 	slots[2].controller = &controller2;
 	slots[3].controller = &controller1;
 	slots[4].controller = &controller1;
+
+	slots[1].port_number = SLOT1_PORT;
 	slots[2].port_number = SLOT2_PORT;
 	slots[3].port_number = SLOT3_PORT;
 	slots[4].port_number = SLOT4_PORT;
 
 	/* Get the port register base with port register offset */
-	for(i = 2; i < 5; i++) {
+	for(i = 1; i < 5; i++) {
 		slots[i].port_base = slots[i].controller->io_base + PORT_REGISTER_OFFSET(slots[i].port_number);
 	}
 
-	for(i = 2; i < 5; i++) {
+	for(i = 1; i < 5; i++) {
 		printk(KERN_INFO "slot%zu port regiseter base: %lx\n", i, slots[i].port_base);
 		slots[i].detection_state = show_sstatus(slots[i].port_base, SSTATUS_OFFSET);
 	}
-	for(i = 2; i < 5; i++) {
+	for(i = 1; i < 5; i++) {
 		printk(KERN_INFO "slot%zu detection state: %u\n", i, slots[i].detection_state);
 	}
 
