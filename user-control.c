@@ -7,6 +7,8 @@
 
 #include "gpio-control.h"
 
+#define SG_RAW_STANDBY_IMMEDIATE_FORMAT "sg_raw /dev/sata%d A1 06 00 00 00 00 00 00 00 E0 00 00"
+
 int main(int argc, char **argv) {
 	if (argc < 3) {
 		printf("Usage: ./user-control SLOT_NUMBER{2-4} OPERATION{up/down}\n");
@@ -17,6 +19,7 @@ int main(int argc, char **argv) {
 
 	char *operation = argv[2];
 	char buf[10];
+	char sg_raw_buf[128];
 	int slot;
 	sscanf(argv[1], "%d", &slot);
 	if (slot > 4 || slot < 2) {
@@ -41,6 +44,15 @@ int main(int argc, char **argv) {
 		printf("No such operation: %s\n", operation);
 		return -1;
 	}
+	if(strcmp(operation, "down") == 0) {
+		int i = 1;
+		for(i = 1; i < 5; i++) {
+			memset(sg_raw_buf, 0, 128);
+			sprintf(sg_raw_buf, SG_RAW_STANDBY_IMMEDIATE_FORMAT, i);
+			system(sg_raw_buf);
+		}
+	}
+
 	if(write(fd, buf, strlen(buf) + 1) < 0) {
 		perror("fwrite");
 		return -1;
