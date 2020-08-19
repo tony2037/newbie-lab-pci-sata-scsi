@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -7,19 +8,24 @@
 
 #include "gpio-control.h"
 
-#define SG_RAW_STANDBY_IMMEDIATE_FORMAT "sg_raw /dev/sata%d A1 06 00 00 00 00 00 00 00 E0 00 00"
+#define HDIO_DRIVE_CMD 0x031f
+#define ATA_OP_STANDBYNOW 0xe0
+#define ATA_OP_CHECKPOWERMODE 0xe5
+#define ARGS_STANDBYNOW(x) uint8_t x[4] = {ATA_OP_STANDBYNOW,0,0,0};
+#define ARGS_CHECKPOWERMODE(x) uint8_t x[4] = {ATA_OP_CHECKPOWERMODE,0,0,0};
 
 int main(int argc, char **argv) {
 	if (argc < 3) {
-		printf("Usage: ./user-control SLOT_NUMBER{2-4} OPERATION{up/down}\n");
-		printf("E.g: ./user-control 4 up\n");
+		printf("Usage: ./user-control SLOT_NUMBER{2-4} DEVICE_FILE OPERATION{up/down}\n");
+		printf("E.g: ./user-control 4 /dev/sata1 up\n");
 		printf("Make sure do: mknod /dev/user-control c {major number} 0\n");
 		return -1;
 	}
 
-	char *operation = argv[2];
-	char buf[10];
-	char sg_raw_buf[128];
+        char *dev_file = argv[2];
+        char *operation = argv[3];
+        char buf[10];
+        char sg_raw_buf[128];
 	int slot;
 	sscanf(argv[1], "%d", &slot);
 	if (slot > 4 || slot < 2) {
@@ -28,15 +34,16 @@ int main(int argc, char **argv) {
 	}
 
 	//union ioctl_arg cmd;
-        int fd;
- 	long ret;
+        int fd, dev_fd;
+        int ret;
 	int close_ret;
  	int num = 0;
 
 	fd = open("/dev/user-control", O_RDWR);
-        if (fd == -1) perror("open");
-
-	//memset(&cmd, 0, sizeof(cmd));
+        if (fd == -1) {
+            perror("open /dev/user-control failed.\n");
+            return -1;
+        }
 
 	printf("Let slot %d goes %s\n", slot, operation);
 	sprintf(buf, "%d %s", slot, operation);
@@ -45,11 +52,49 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 	if(strcmp(operation, "down") == 0) {
-		int i = 1;
-		for(i = 1; i < 5; i++) {
-			memset(sg_raw_buf, 0, 128);
-			sprintf(sg_raw_buf, SG_RAW_STANDBY_IMMEDIATE_FORMAT, i);
-			system(sg_raw_buf);
+                dev_fd = open(dev_file, O_RDWR);
+                if (dev_fd == -1) {
+                    printf("open %s failed.\n", dev_file);
+                    return -1;
+                }
+		ARGS_STANDBYNOW(args_standbynow);
+		ARGS_CHECKPOWERMODE(args_checkpowermode);
+
+		ret = ioctl(dev_fd, HDIO_DRIVE_CMD, args_standbynow);
+		if (ret == -1) {
+			printf("ioctl standby immediately failed\n");
+			return -1;
+		}
+		ret = ioctl(dev_fd, HDIO_DRIVE_CMD, args_checkpowermode);
+		if (ret == -1) {
+			printf("ioctl standby immediately failed\n");
+			return -1;
+		}
+
+		switch (args_checkpowermode[2]) {
+			case 0x00:
+				printf("The disk is in standby mode\n");
+				break;
+			case 0x40:
+				printf("The disk is in NVcache_spindown mode\n");
+				return -1;
+				break;
+			case 0x41:
+				printf("The disk is in NVcache_spinup mode\n");
+				return -1;
+				break;
+			case 0x80:
+				printf("The disk is in idle mode\n");
+				return -1;
+				break;
+			case 0xff:
+				printf("The disk is in active/idle mode\n");
+				return -1;
+				break;
+			default:
+				printf("Unknown state\n");
+				return -1;
+				break;
 		}
 	}
 
