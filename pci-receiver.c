@@ -128,6 +128,6 @@ int main(int argc, char **argv) {
 		}
 		sscanf(buf, "%u %u %u %u", &tmp_states[1], &tmp_states[2], &tmp_states[3], &tmp_states[4]);
 		check_state();
-		sleep(30); /* wait 30 seconds */
+		sleep(1); /* wait 1 seconds */
         }
 }
