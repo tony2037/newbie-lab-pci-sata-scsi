@@ -13,56 +13,55 @@
 #include "gpio-control.h"
 
 #define DRIVER_NAME "gpio_control"
-static unsigned int gpio_control_major = 0;
-static unsigned int num_of_dev = 1;
-static struct cdev gpio_control_cdev;
-static int ioctl_num = 0;
+static unsigned int iGPIOControlMajor = 0;
+static unsigned int icDev = 1;
+static struct cdev GPIOCdev;
 static dev_t dev; 
 
 /* gpio configuration */
-static unsigned int gpio_numbers[5] = {0, 0, 21, 22, 23}; /* Change it to the gpio port that you wanna control*/
+static unsigned int irgGPIOPins[5] = {0, 0, 21, 22, 23}; /* Change it to the gpio port that you wanna control*/
 
 /* construct kobject */
 static struct kobject *kobject;
-int gpio_state = 0;
+int iGPIOState = 0;
 
-static ssize_t gpio_state_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+static ssize_t iGPIOState_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", gpio_state);
+	return sprintf(buf, "%d\n", iGPIOState);
 }
 
-static ssize_t gpio_state_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t len)
+static ssize_t iGPIOState_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t len)
 {
-	sscanf(buf, "%d", &gpio_state);
+	sscanf(buf, "%d", &iGPIOState);
 	return len;
 }
 
-static struct kobj_attribute gpio_state_attribute = __ATTR_RW(gpio_state);
+static struct kobj_attribute GPIOStateAttribute = __ATTR_RW(iGPIOState);
 
 /* ioctl functions */
-static int gpio_control_open(struct inode *inode, struct file *filp)
+static int GPIOControlOpen(struct inode *inode, struct file *filp)
 {
 	printk(KERN_INFO "%s open \n", DRIVER_NAME);
 	return 0;
 }
 
-static int gpio_control_close(struct inode *inode, struct file *filp)
+static int GPIOControlClose(struct inode *inode, struct file *filp)
 {
 	printk(KERN_ALERT "%s call.\n", __func__);
 	printk(KERN_INFO "%s release \n", DRIVER_NAME);	
 	return 0;
 }
 
-static ssize_t gpio_control_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos){
-	char gpio_control_buf[10];
+static ssize_t GPIOControlWrite(struct file *file, const char __user *buf, size_t count, loff_t *ppos){
+	char chpGPIOBuf[10];
 	char command[10];
 	int slot;
 
 	if(count > 10)
 		return -EINVAL;
 	unsigned long ret;
-	ret = copy_from_user(gpio_control_buf, buf, count);
-	sscanf(gpio_control_buf, "%d %s", &slot, command);
+	ret = copy_from_user(chpGPIOBuf, buf, count);
+	sscanf(chpGPIOBuf, "%d %s", &slot, command);
 	printk(KERN_INFO "Get command: Let slot %d goes %s\n", slot, command);
 
 	if (slot > 4 || slot < 2) {
@@ -71,9 +70,9 @@ static ssize_t gpio_control_write(struct file *file, const char __user *buf, siz
 	}
 
 	if (strcmp(command, "up") == 0) {
-		SYNO_GPIO_WRITE(gpio_numbers[slot], GPIOF_INIT_HIGH);
+		SYNO_GPIO_WRITE(irgGPIOPins[slot], GPIOF_INIT_HIGH);
 	} else if (strcmp(command, "down") == 0) {
-		SYNO_GPIO_WRITE(gpio_numbers[slot], GPIOF_INIT_LOW);
+		SYNO_GPIO_WRITE(irgGPIOPins[slot], GPIOF_INIT_LOW);
 	
 	} else {
 		printk(KERN_INFO "No such command: %s\n", command);
@@ -81,26 +80,26 @@ static ssize_t gpio_control_write(struct file *file, const char __user *buf, siz
 	return count;
 }
 
-static long gpio_control_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+static long GPIOControlIoctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
-	int pinValue;
+	int iPinValue;
 	switch(cmd) {
 		case IOCTL_UP:
-			printk(KERN_INFO "Detect UP operation. write %d to %d\n", GPIOF_INIT_HIGH, gpio_numbers[4]);	
-			SYNO_GPIO_WRITE(gpio_numbers[4], GPIOF_INIT_HIGH);
+			printk(KERN_INFO "Detect UP operation. write %d to %d\n", GPIOF_INIT_HIGH, irgGPIOPins[4]);	
+			SYNO_GPIO_WRITE(irgGPIOPins[4], GPIOF_INIT_HIGH);
 			break;
 		case IOCTL_DOWN:
-			printk(KERN_INFO "Detect DOWN operation. write %d to %d\n", GPIOF_INIT_LOW, gpio_numbers[4]);	
-			SYNO_GPIO_WRITE(gpio_numbers[4], GPIOF_INIT_LOW);
+			printk(KERN_INFO "Detect DOWN operation. write %d to %d\n", GPIOF_INIT_LOW, irgGPIOPins[4]);	
+			SYNO_GPIO_WRITE(irgGPIOPins[4], GPIOF_INIT_LOW);
 			break;
 		case IOCTL_GET:
-			pinValue = SYNO_GPIO_READ(gpio_numbers[4]);
-			printk(KERN_INFO "Detect GET operation. read %d from %d\n", pinValue, gpio_numbers[4]);	
-			ret = __put_user(pinValue, (int __user *)arg);
+			iPinValue = SYNO_GPIO_READ(irgGPIOPins[4]);
+			printk(KERN_INFO "Detect GET operation. read %d from %d\n", iPinValue, irgGPIOPins[4]);	
+			ret = __put_user(iPinValue, (int __user *)arg);
 			break;
 		default:
-			printk(KERN_WARNING "%s driver(major: %d) No such operation.\n", DRIVER_NAME, gpio_control_major);
+			printk(KERN_WARNING "%s driver(major: %d) No such operation.\n", DRIVER_NAME, iGPIOControlMajor);
 			break;
 	}
 	return ret;
@@ -108,60 +107,60 @@ static long gpio_control_ioctl(struct file *filp, unsigned int cmd, unsigned lon
 
 struct file_operations fops = {
  .owner = THIS_MODULE,
- .open = gpio_control_open,
- .write = gpio_control_write,
- .release = gpio_control_close,
- .unlocked_ioctl = gpio_control_ioctl,
+ .open = GPIOControlOpen,
+ .write = GPIOControlWrite,
+ .release = GPIOControlClose,
+ .unlocked_ioctl = GPIOControlIoctl,
 };
 
-static int __init gpio_control_init(void)
+static int __init GPIOControlInit(void)
 {
 	/* register kobject */
 	int error;
 	kobject = kobject_create_and_add("gpio-control", kernel_kobj);
-    if(!kobject)
+        if(!kobject)
 		return -ENOMEM;
 
-	error = sysfs_create_file(kobject, &gpio_state_attribute.attr);
+	error = sysfs_create_file(kobject, &GPIOStateAttribute.attr);
 	if (error) {
 		printk(KERN_WARNING "sysfs_create_file failed\n");
 	}
 	printk(KERN_WARNING "Sysfs /sys/kernel/gpio-control/gpio_state created\n");
 
 	/* register cdev */
-	dev = MKDEV(gpio_control_major, 0);
+	dev = MKDEV(iGPIOControlMajor, 0);
 	int alloc_ret = 0;
 	int cdev_ret = 0;
 
-	alloc_ret = alloc_chrdev_region(&dev, 0, num_of_dev, DRIVER_NAME);
+	alloc_ret = alloc_chrdev_region(&dev, 0, icDev, DRIVER_NAME);
 	if(alloc_ret < 0) {
-		if (cdev_ret == 0) cdev_del(&gpio_control_cdev);
+		if (cdev_ret == 0) cdev_del(&GPIOCdev);
 		printk(KERN_ALERT "%s driver: alloc_chrdev_region error.\n", DRIVER_NAME);
 	}
 
-	gpio_control_major = MAJOR(dev);
+	iGPIOControlMajor = MAJOR(dev);
 
-	cdev_init(&gpio_control_cdev, &fops);
-	cdev_ret = cdev_add(&gpio_control_cdev, dev, num_of_dev);
+	cdev_init(&GPIOCdev, &fops);
+	cdev_ret = cdev_add(&GPIOCdev, dev, icDev);
 	if(cdev_ret < 0) {
-		if (alloc_ret == 0) unregister_chrdev_region(dev, num_of_dev);
+		if (alloc_ret == 0) unregister_chrdev_region(dev, icDev);
 		printk(KERN_ALERT "%s driver: cdev_add error.\n", DRIVER_NAME);
 	}
 
-	printk(KERN_WARNING "%s driver(major: %d) installed.\n", DRIVER_NAME, gpio_control_major);
+	printk(KERN_WARNING "%s driver(major: %d) installed.\n", DRIVER_NAME, iGPIOControlMajor);
 	return 0;
 }
 
-static void __exit gpio_control_exit(void)
+static void __exit GPIOControlExit(void)
 {
-	unregister_chrdev_region(dev, num_of_dev);
-	cdev_del(&gpio_control_cdev);
-	sysfs_remove_file(kobject, &gpio_state_attribute.attr);
+	unregister_chrdev_region(dev, icDev);
+	cdev_del(&GPIOCdev);
+	sysfs_remove_file(kobject, &GPIOStateAttribute.attr);
 	kobject_put(kobject);
 	kobject_del(kobject);
-	printk(KERN_WARNING "%s driver(major: %d) uninstalled.\n", DRIVER_NAME, gpio_control_major);
+	printk(KERN_WARNING "%s driver(major: %d) uninstalled.\n", DRIVER_NAME, iGPIOControlMajor);
 }
 
-module_init(gpio_control_init)
-module_exit(gpio_control_exit)
+module_init(GPIOControlInit)
+module_exit(GPIOControlExit)
 MODULE_LICENSE("GPL");
